@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import useBingoGame from '../hooks/useBingoGame';
 import BingoCard from '../components/BingoCard';
 import NumberBall from '../components/NumberBall';
 import WinnerModal from '../components/WinnerModal';
+import CreditsDisplay from '../components/CreditsDisplay';
 
 export default function GameScreen() {
   const {
@@ -16,14 +17,43 @@ export default function GameScreen() {
     currentNumber,
     isWinner,
     winner,
+    playerCredits,
+    currentPot,
+    creditsWon,
+    betAmount,
     startNewGame,
     drawNextNumber,
     toggleCell,
   } = useBingoGame();
 
+  const [gameStarted, setGameStarted] = useState(false);
+
+  // Función para iniciar un nuevo juego
+  const handleStartNewGame = () => {
+    if (playerCredits < betAmount) {
+      Alert.alert(
+        'Sin créditos',
+        'No tienes suficientes créditos para jugar. Necesitas al menos ' + betAmount + ' créditos.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const success = startNewGame();
+    if (success) {
+      setGameStarted(true);
+    } else {
+      Alert.alert(
+        'No se puede iniciar',
+        'No hay suficientes jugadores con créditos para iniciar la partida.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   // Inicializar juego al montar el componente
   useEffect(() => {
-    startNewGame();
+    handleStartNewGame();
   }, []);
 
   if (!bingoCard) {
@@ -39,6 +69,13 @@ export default function GameScreen() {
       <StatusBar style="light" />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Display de créditos */}
+        <CreditsDisplay
+          credits={playerCredits}
+          currentPot={currentPot}
+          betAmount={betAmount}
+        />
+
         {/* Número actual */}
         <NumberBall number={currentNumber} />
 
@@ -83,16 +120,26 @@ export default function GameScreen() {
         </View>
 
         {/* Botón de reiniciar */}
-        <Pressable style={styles.resetButton} onPress={startNewGame}>
-          <Text style={styles.resetButtonText}>Nuevo Juego</Text>
+        <Pressable
+          style={[
+            styles.resetButton,
+            playerCredits < betAmount && styles.disabledButton
+          ]}
+          onPress={handleStartNewGame}
+          disabled={playerCredits < betAmount}
+        >
+          <Text style={styles.resetButtonText}>
+            {playerCredits < betAmount ? 'Sin créditos' : 'Nuevo Juego'}
+          </Text>
         </Pressable>
       </ScrollView>
 
       {/* Modal de ganador */}
       <WinnerModal
         visible={isWinner}
-        onPlayAgain={startNewGame}
+        onPlayAgain={handleStartNewGame}
         winner={winner === 'player' ? 'Tú' : `Jugador ${winner + 1}`}
+        creditsWon={creditsWon}
       />
     </View>
   );

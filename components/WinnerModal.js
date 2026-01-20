@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 
-export default function WinnerModal({ visible, onPlayAgain, winner = 'Tú' }) {
+export default function WinnerModal({ visible, onPlayAgain, winner = 'Tú', creditsWon = 0 }) {
   const isPlayerWinner = winner === 'Tú';
 
   return (
@@ -22,6 +22,13 @@ export default function WinnerModal({ visible, onPlayAgain, winner = 'Tú' }) {
               ? 'Has ganado el juego'
               : `Ganó ${winner}`}
           </Text>
+
+          {creditsWon > 0 && (
+            <View style={styles.prizeContainer}>
+              <Text style={styles.prizeLabel}>Premio:</Text>
+              <Text style={styles.prizeAmount}>💰 {creditsWon} créditos</Text>
+            </View>
+          )}
 
           <Pressable style={styles.button} onPress={onPlayAgain}>
             <Text style={styles.buttonText}>Jugar de Nuevo</Text>
@@ -76,7 +83,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666666',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
+  },
+  prizeContainer: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 12,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  prizeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  prizeAmount: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
   },
   button: {
     backgroundColor: '#4A90E2',

@@ -8,6 +8,10 @@ import {
 } from '../utils/bingoLogic';
 import { FREE_CELL_POSITION } from '../utils/constants';
 
+const INITIAL_CREDITS = 10;
+const BET_AMOUNT = 2;
+const NUM_OPPONENTS = 5;
+
 export default function useBingoGame() {
   const [bingoCard, setBingoCard] = useState(null);
   const [markedCells, setMarkedCells] = useState([]);
@@ -18,22 +22,65 @@ export default function useBingoGame() {
   const [isWinner, setIsWinner] = useState(false);
   const [winner, setWinner] = useState(null); // null, 'player', o índice del oponente
 
+  // Sistema de créditos
+  const [playerCredits, setPlayerCredits] = useState(INITIAL_CREDITS);
+  const [opponentCredits, setOpponentCredits] = useState(Array(NUM_OPPONENTS).fill(INITIAL_CREDITS));
+  const [currentPot, setCurrentPot] = useState(0);
+  const [creditsWon, setCreditsWon] = useState(0);
+
   // Inicializar el juego
   const startNewGame = useCallback(() => {
+    // Verificar que el jugador tenga créditos suficientes
+    if (playerCredits < BET_AMOUNT) {
+      return false; // No se puede iniciar el juego
+    }
+
+    // Filtrar oponentes que tienen créditos suficientes
+    const activeOpponents = opponentCredits
+      .map((credits, index) => ({ credits, index }))
+      .filter(opponent => opponent.credits >= BET_AMOUNT);
+
+    if (activeOpponents.length === 0) {
+      // Si no hay oponentes con créditos, no iniciar el juego
+      return false;
+    }
+
+    // Descontar créditos a los jugadores activos
+    const totalPlayers = 1 + activeOpponents.length;
+    const pot = totalPlayers * BET_AMOUNT;
+
+    setPlayerCredits(prev => prev - BET_AMOUNT);
+    setOpponentCredits(prev =>
+      prev.map((credits, index) =>
+        activeOpponents.some(opp => opp.index === index)
+          ? credits - BET_AMOUNT
+          : credits
+      )
+    );
+    setCurrentPot(pot);
+
     const newCard = generateBingoCard();
     setBingoCard(newCard);
     setMarkedCells([FREE_CELL_POSITION]); // La celda FREE siempre está marcada
 
-    // Generar 5 cartones de oponentes
-    const opponents = Array(5).fill(null).map(() => generateBingoCard());
+    // Generar cartones solo para oponentes activos
+    const opponents = Array(NUM_OPPONENTS).fill(null).map((_, index) => {
+      if (activeOpponents.some(opp => opp.index === index)) {
+        return generateBingoCard();
+      }
+      return null;
+    });
     setOpponentCards(opponents);
-    setOpponentMarkedCells(opponents.map(() => [FREE_CELL_POSITION]));
+    setOpponentMarkedCells(opponents.map(card => card ? [FREE_CELL_POSITION] : []));
 
     setDrawnNumbers([]);
     setCurrentNumber(null);
     setIsWinner(false);
     setWinner(null);
-  }, []);
+    setCreditsWon(0);
+
+    return true; // Juego iniciado correctamente
+  }, [playerCredits, opponentCredits]);
 
   // Sortear siguiente número
   const drawNextNumber = useCallback(() => {
@@ -72,20 +119,30 @@ export default function useBingoGame() {
       if (playerWon) {
         setIsWinner(true);
         setWinner('player');
+        // Otorgar premio al jugador
+        setPlayerCredits(prev => prev + currentPot);
+        setCreditsWon(currentPot);
         return;
       }
 
       // Verificar si algún oponente ganó
       for (let i = 0; i < opponentMarkedCells.length; i++) {
-        const opponentWon = checkWinner(opponentMarkedCells[i]);
-        if (opponentWon) {
-          setIsWinner(true);
-          setWinner(i);
-          return;
+        if (opponentCards[i]) { // Solo verificar oponentes activos
+          const opponentWon = checkWinner(opponentMarkedCells[i]);
+          if (opponentWon) {
+            setIsWinner(true);
+            setWinner(i);
+            // Otorgar premio al oponente
+            setOpponentCredits(prev =>
+              prev.map((credits, index) => (index === i ? credits + currentPot : credits))
+            );
+            setCreditsWon(currentPot);
+            return;
+          }
         }
       }
     }
-  }, [markedCells, opponentMarkedCells, bingoCard, winner]);
+  }, [markedCells, opponentMarkedCells, bingoCard, winner, currentPot, opponentCards]);
 
   return {
     bingoCard,
@@ -96,6 +153,11 @@ export default function useBingoGame() {
     currentNumber,
     isWinner,
     winner,
+    playerCredits,
+    opponentCredits,
+    currentPot,
+    creditsWon,
+    betAmount: BET_AMOUNT,
     startNewGame,
     drawNextNumber,
     toggleCell,
