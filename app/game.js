@@ -10,9 +10,12 @@ export default function GameScreen() {
   const {
     bingoCard,
     markedCells,
+    opponentCards,
+    opponentMarkedCells,
     drawnNumbers,
     currentNumber,
     isWinner,
+    winner,
     startNewGame,
     drawNextNumber,
     toggleCell,
@@ -60,7 +63,7 @@ export default function GameScreen() {
           </Text>
         </Pressable>
 
-        {/* Cartón de bingo */}
+        {/* Cartón del jugador */}
         <BingoCard
           card={bingoCard}
           markedCells={markedCells}
@@ -69,16 +72,14 @@ export default function GameScreen() {
 
         {/* Historial de números sorteados */}
         <View style={styles.historyContainer}>
-          <Text style={styles.historyTitle}>Números Sorteados:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.historyList}>
-              {drawnNumbers.map((num, index) => (
-                <View key={index} style={styles.historyItem}>
-                  <Text style={styles.historyNumber}>{num}</Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
+          <Text style={styles.historyTitle}>Números Sorteados: {drawnNumbers.length}</Text>
+          <View style={styles.historyGrid}>
+            {drawnNumbers.map((num, index) => (
+              <View key={index} style={styles.historyItem}>
+                <Text style={styles.historyNumber}>{num}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Botón de reiniciar */}
@@ -88,7 +89,11 @@ export default function GameScreen() {
       </ScrollView>
 
       {/* Modal de ganador */}
-      <WinnerModal visible={isWinner} onPlayAgain={startNewGame} />
+      <WinnerModal
+        visible={isWinner}
+        onPlayAgain={startNewGame}
+        winner={winner === 'player' ? 'Tú' : `Jugador ${winner + 1}`}
+      />
     </View>
   );
 }
@@ -149,18 +154,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333333',
     marginBottom: 10,
+    textAlign: 'center',
   },
-  historyList: {
+  historyGrid: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
   },
   historyItem: {
     backgroundColor: '#4A90E2',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    width: 40,
+    height: 40,
     borderRadius: 8,
-    minWidth: 40,
+    justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   historyNumber: {
     color: '#FFFFFF',

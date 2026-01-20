@@ -1,7 +1,9 @@
 import React from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 
-export default function WinnerModal({ visible, onPlayAgain }) {
+export default function WinnerModal({ visible, onPlayAgain, winner = 'Tú' }) {
+  const isPlayerWinner = winner === 'Tú';
+
   return (
     <Modal
       visible={visible}
@@ -12,8 +14,14 @@ export default function WinnerModal({ visible, onPlayAgain }) {
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <Text style={styles.title}>¡BINGO!</Text>
-          <Text style={styles.subtitle}>¡Felicitaciones!</Text>
-          <Text style={styles.message}>Has completado todo el cartón</Text>
+          <Text style={[styles.subtitle, !isPlayerWinner && styles.lostSubtitle]}>
+            {isPlayerWinner ? '¡Felicitaciones!' : '¡Fin del juego!'}
+          </Text>
+          <Text style={styles.message}>
+            {isPlayerWinner
+              ? 'Has ganado el juego'
+              : `Ganó ${winner}`}
+          </Text>
 
           <Pressable style={styles.button} onPress={onPlayAgain}>
             <Text style={styles.buttonText}>Jugar de Nuevo</Text>
@@ -60,6 +68,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333333',
     marginBottom: 10,
+  },
+  lostSubtitle: {
+    color: '#E94B4B',
   },
   message: {
     fontSize: 16,
