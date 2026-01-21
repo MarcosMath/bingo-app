@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import useBingoGame from '../hooks/useBingoGame';
+import { useRouter, Redirect } from 'expo-router';
+import { useBingoGameContext } from '../contexts/BingoGameContext';
 import BingoCard from '../components/BingoCard';
 import NumberBall from '../components/NumberBall';
 import WinnerModal from '../components/WinnerModal';
 import CreditsDisplay from '../components/CreditsDisplay';
 
 export default function GameScreen() {
+  const router = useRouter();
   const {
     bingoCard,
     markedCells,
-    opponentCards,
-    opponentMarkedCells,
     drawnNumbers,
     currentNumber,
     isWinner,
@@ -20,49 +20,36 @@ export default function GameScreen() {
     playerCredits,
     currentPot,
     creditsWon,
-    betAmount,
-    startNewGame,
+    playersInRoom,
+    gameState,
+    GAME_STATES,
     drawNextNumber,
     toggleCell,
-  } = useBingoGame();
+    returnToLobby,
+  } = useBingoGameContext();
 
-  const [gameStarted, setGameStarted] = useState(false);
-
-  // Función para iniciar un nuevo juego
-  const handleStartNewGame = () => {
-    if (playerCredits < betAmount) {
-      Alert.alert(
-        'Sin créditos',
-        'No tienes suficientes créditos para jugar. Necesitas al menos ' + betAmount + ' créditos.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    const success = startNewGame();
-    if (success) {
-      setGameStarted(true);
-    } else {
-      Alert.alert(
-        'No se puede iniciar',
-        'No hay suficientes jugadores con créditos para iniciar la partida.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  // Inicializar juego al montar el componente
+  // Sorteo automático de números cada 3-5 segundos
   useEffect(() => {
-    handleStartNewGame();
-  }, []);
+    if (gameState === GAME_STATES.PLAYING && drawnNumbers.length < 75 && !isWinner) {
+      const randomDelay = 3000 + Math.random() * 2000; // 3-5 segundos
+      const interval = setTimeout(() => {
+        drawNextNumber();
+      }, randomDelay);
 
-  if (!bingoCard) {
-    return (
-      <View style={styles.container}>
-        <Text>Cargando...</Text>
-      </View>
-    );
+      return () => clearTimeout(interval);
+    }
+  }, [gameState, drawnNumbers, isWinner, GAME_STATES, drawNextNumber]);
+
+  // Redirigir al lobby si no hay juego activo
+  if (!bingoCard || gameState !== GAME_STATES.PLAYING) {
+    return <Redirect href="/lobby" />;
   }
+
+  // Manejar regreso al lobby
+  const handleReturnToLobby = () => {
+    returnToLobby();
+    router.push('/lobby');
+  };
 
   return (
     <View style={styles.container}>
@@ -73,8 +60,17 @@ export default function GameScreen() {
         <CreditsDisplay
           credits={playerCredits}
           currentPot={currentPot}
-          betAmount={betAmount}
         />
+
+        {/* Estado del juego */}
+        <View style={styles.gameStatusContainer}>
+          <Text style={styles.gameStatusText}>
+            Jugadores: {playersInRoom.length}
+          </Text>
+          <Text style={styles.gameStatusText}>
+            Sorteo automático ⚡
+          </Text>
+        </View>
 
         {/* Número actual */}
         <NumberBall number={currentNumber} />
@@ -88,17 +84,6 @@ export default function GameScreen() {
             Marcados: {markedCells.length - 1} / 24
           </Text>
         </View>
-
-        {/* Botón de sorteo */}
-        <Pressable
-          style={[styles.drawButton, drawnNumbers.length >= 75 && styles.disabledButton]}
-          onPress={drawNextNumber}
-          disabled={drawnNumbers.length >= 75 || isWinner}
-        >
-          <Text style={styles.drawButtonText}>
-            {drawnNumbers.length >= 75 ? 'Sin números' : 'Sortear Número'}
-          </Text>
-        </Pressable>
 
         {/* Cartón del jugador */}
         <BingoCard
@@ -118,26 +103,12 @@ export default function GameScreen() {
             ))}
           </View>
         </View>
-
-        {/* Botón de reiniciar */}
-        <Pressable
-          style={[
-            styles.resetButton,
-            playerCredits < betAmount && styles.disabledButton
-          ]}
-          onPress={handleStartNewGame}
-          disabled={playerCredits < betAmount}
-        >
-          <Text style={styles.resetButtonText}>
-            {playerCredits < betAmount ? 'Sin créditos' : 'Nuevo Juego'}
-          </Text>
-        </Pressable>
       </ScrollView>
 
       {/* Modal de ganador */}
       <WinnerModal
         visible={isWinner}
-        onPlayAgain={handleStartNewGame}
+        onPlayAgain={handleReturnToLobby}
         winner={winner === 'player' ? 'Tú' : `Jugador ${winner + 1}`}
         creditsWon={creditsWon}
       />
@@ -150,9 +121,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
+  },
   scrollContent: {
     alignItems: 'center',
     paddingVertical: 20,
+  },
+  gameStatusContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    backgroundColor: '#16213e',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  gameStatusText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4CAF50',
   },
   infoContainer: {
     flexDirection: 'row',
@@ -165,31 +156,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#666666',
-  },
-  drawButton: {
-    backgroundColor: '#50C878',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  disabledButton: {
-    backgroundColor: '#CCCCCC',
-  },
-  drawButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
   },
   historyContainer: {
     width: '100%',
@@ -229,19 +195,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
-  },
-  resetButton: {
-    backgroundColor: '#E94B4B',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  resetButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
   },
 });

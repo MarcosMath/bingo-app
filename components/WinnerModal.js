@@ -31,7 +31,7 @@ export default function WinnerModal({ visible, onPlayAgain, winner = 'Tú', cred
           )}
 
           <Pressable style={styles.button} onPress={onPlayAgain}>
-            <Text style={styles.buttonText}>Jugar de Nuevo</Text>
+            <Text style={styles.buttonText}>Volver al Lobby</Text>
           </Pressable>
         </View>
       </View>

@@ -12,6 +12,14 @@ const INITIAL_CREDITS = 10;
 const BET_AMOUNT = 2;
 const NUM_OPPONENTS = 5;
 
+// Estados del juego
+const GAME_STATES = {
+  LOBBY: 'lobby',
+  WAITING: 'waiting',
+  PLAYING: 'playing',
+  COMPLETED: 'completed',
+};
+
 export default function useBingoGame() {
   const [bingoCard, setBingoCard] = useState(null);
   const [markedCells, setMarkedCells] = useState([]);
@@ -27,6 +35,10 @@ export default function useBingoGame() {
   const [opponentCredits, setOpponentCredits] = useState(Array(NUM_OPPONENTS).fill(INITIAL_CREDITS));
   const [currentPot, setCurrentPot] = useState(0);
   const [creditsWon, setCreditsWon] = useState(0);
+
+  // Estados de matchmaking y juego
+  const [gameState, setGameState] = useState(GAME_STATES.LOBBY);
+  const [playersInRoom, setPlayersInRoom] = useState([]);
 
   // Inicializar el juego
   const startNewGame = useCallback(() => {
@@ -97,9 +109,13 @@ export default function useBingoGame() {
 
       // Auto-marcar el número en los cartones de los oponentes
       setOpponentMarkedCells((prevOpponents) =>
-        prevOpponents.map((marked, index) =>
-          autoMarkNumber(opponentCards[index], newNumber, marked)
-        )
+        prevOpponents.map((marked, index) => {
+          // Solo auto-marcar si el oponente tiene un cartón (está en la sala)
+          if (opponentCards[index]) {
+            return autoMarkNumber(opponentCards[index], newNumber, marked);
+          }
+          return marked; // Mantener el estado anterior si no tiene cartón
+        })
       );
     }
   }, [bingoCard, opponentCards, drawnNumbers, isWinner]);
@@ -109,6 +125,96 @@ export default function useBingoGame() {
     if (cellIndex === FREE_CELL_POSITION) return; // No se puede desmarcar FREE
 
     setMarkedCells((prev) => toggleCellMark(cellIndex, prev));
+  }, []);
+
+  // Iniciar matchmaking (deducir créditos, cambiar estado)
+  const initiateMatchmaking = useCallback(() => {
+    if (playerCredits < BET_AMOUNT) return false;
+
+    setPlayerCredits(prev => prev - BET_AMOUNT);
+    setGameState(GAME_STATES.WAITING);
+    setPlayersInRoom([{ id: 'player', name: 'Tú', isPlayer: true }]);
+
+    return true;
+  }, [playerCredits]);
+
+  // Agregar un jugador AI a la sala
+  const addAIPlayer = useCallback((playerNumber) => {
+    setPlayersInRoom(prev => {
+      // Verificar si el jugador ya está en la sala
+      const alreadyInRoom = prev.some(p => p.opponentIndex === playerNumber);
+      if (alreadyInRoom) {
+        console.log(`Jugador ${playerNumber} ya está en la sala`);
+        return prev;
+      }
+
+      // Verificar créditos
+      const opponentHasCredits = opponentCredits[playerNumber] >= BET_AMOUNT;
+      if (!opponentHasCredits) {
+        console.log(`Jugador ${playerNumber} no tiene créditos suficientes`);
+        return prev;
+      }
+
+      console.log(`Agregando Jugador ${playerNumber + 1} a la sala`);
+
+      // Deducir créditos del oponente
+      setOpponentCredits(credits => {
+        const newCredits = [...credits];
+        newCredits[playerNumber] -= BET_AMOUNT;
+        return newCredits;
+      });
+
+      return [...prev, {
+        id: `opponent-${playerNumber}`,
+        name: `Jugador ${playerNumber + 1}`,
+        isPlayer: false,
+        opponentIndex: playerNumber,
+      }];
+    });
+  }, [opponentCredits]);
+
+  // Iniciar el juego real
+  const startGame = useCallback(() => {
+    const totalPlayers = playersInRoom.length;
+    const pot = totalPlayers * BET_AMOUNT;
+
+    setCurrentPot(pot);
+    setGameState(GAME_STATES.PLAYING);
+
+    // Generar cartón del jugador
+    const newCard = generateBingoCard();
+    setBingoCard(newCard);
+    setMarkedCells([FREE_CELL_POSITION]);
+
+    // Generar cartones para los oponentes en la sala
+    const opponents = Array(NUM_OPPONENTS).fill(null).map((_, index) => {
+      const isInRoom = playersInRoom.some(p => p.opponentIndex === index);
+      return isInRoom ? generateBingoCard() : null;
+    });
+    setOpponentCards(opponents);
+    setOpponentMarkedCells(opponents.map(card => card ? [FREE_CELL_POSITION] : []));
+
+    setDrawnNumbers([]);
+    setCurrentNumber(null);
+    setIsWinner(false);
+    setWinner(null);
+    setCreditsWon(0);
+  }, [playersInRoom]);
+
+  // Volver al lobby después del juego
+  const returnToLobby = useCallback(() => {
+    setGameState(GAME_STATES.LOBBY);
+    setPlayersInRoom([]);
+    setBingoCard(null);
+    setMarkedCells([]);
+    setOpponentCards([]);
+    setOpponentMarkedCells([]);
+    setDrawnNumbers([]);
+    setCurrentNumber(null);
+    setWinner(null);
+    setIsWinner(false);
+    setCreditsWon(0);
+    setCurrentPot(0);
   }, []);
 
   // Verificar si ganó cada vez que cambian las celdas marcadas
@@ -158,8 +264,15 @@ export default function useBingoGame() {
     currentPot,
     creditsWon,
     betAmount: BET_AMOUNT,
+    gameState,
+    playersInRoom,
     startNewGame,
     drawNextNumber,
     toggleCell,
+    initiateMatchmaking,
+    addAIPlayer,
+    startGame,
+    returnToLobby,
+    GAME_STATES,
   };
 }
