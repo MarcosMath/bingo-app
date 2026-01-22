@@ -1,0 +1,284 @@
+import { BingoCardGenerator } from './bingo-card-generator';
+
+describe('BingoCardGenerator', () => {
+  describe('generateCard', () => {
+    it('should generate a 5x5 card', () => {
+      const card = BingoCardGenerator.generateCard();
+
+      expect(card).toHaveLength(5); // 5 columns
+      card.forEach(column => {
+        expect(column).toHaveLength(5); // 5 rows per column
+      });
+    });
+
+    it('should have FREE space in center (column N, row 2)', () => {
+      const card = BingoCardGenerator.generateCard();
+
+      // Column N is index 2, row 2
+      expect(card[2][2]).toBe(0);
+    });
+
+    it('should generate numbers in correct ranges for each column', () => {
+      const card = BingoCardGenerator.generateCard();
+
+      // Column B (0): 1-15
+      card[0].forEach(num => {
+        if (num !== 0) {
+          expect(num).toBeGreaterThanOrEqual(1);
+          expect(num).toBeLessThanOrEqual(15);
+        }
+      });
+
+      // Column I (1): 16-30
+      card[1].forEach(num => {
+        if (num !== 0) {
+          expect(num).toBeGreaterThanOrEqual(16);
+          expect(num).toBeLessThanOrEqual(30);
+        }
+      });
+
+      // Column N (2): 31-45
+      card[2].forEach(num => {
+        if (num !== 0) {
+          expect(num).toBeGreaterThanOrEqual(31);
+          expect(num).toBeLessThanOrEqual(45);
+        }
+      });
+
+      // Column G (3): 46-60
+      card[3].forEach(num => {
+        if (num !== 0) {
+          expect(num).toBeGreaterThanOrEqual(46);
+          expect(num).toBeLessThanOrEqual(60);
+        }
+      });
+
+      // Column O (4): 61-75
+      card[4].forEach(num => {
+        if (num !== 0) {
+          expect(num).toBeGreaterThanOrEqual(61);
+          expect(num).toBeLessThanOrEqual(75);
+        }
+      });
+    });
+
+    it('should not have duplicate numbers in the same column', () => {
+      const card = BingoCardGenerator.generateCard();
+
+      card.forEach(column => {
+        const nonZeroNumbers = column.filter(n => n !== 0);
+        const uniqueNumbers = new Set(nonZeroNumbers);
+        expect(uniqueNumbers.size).toBe(nonZeroNumbers.length);
+      });
+    });
+
+    it('should generate different cards each time', () => {
+      const card1 = BingoCardGenerator.generateCard();
+      const card2 = BingoCardGenerator.generateCard();
+
+      // Convert to string for easy comparison
+      const card1Str = JSON.stringify(card1);
+      const card2Str = JSON.stringify(card2);
+
+      expect(card1Str).not.toBe(card2Str);
+    });
+  });
+
+  describe('checkBingo', () => {
+    it('should detect horizontal line (row)', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      // Mark first row
+      const markedNumbers = [1, 16, 31, 46, 61];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(true);
+    });
+
+    it('should detect vertical line (column)', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      // Mark first column (B)
+      const markedNumbers = [1, 2, 3, 4, 5];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(true);
+    });
+
+    it('should detect diagonal line (\\)', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      // Mark diagonal \ (includes FREE center)
+      const markedNumbers = [1, 17, 49, 65];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(true);
+    });
+
+    it('should detect diagonal line (/)', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      // Mark diagonal / (includes FREE center)
+      const markedNumbers = [5, 19, 47, 61];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(true);
+    });
+
+    it('should not detect bingo with incomplete line', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      // Mark only 4 numbers in first row
+      const markedNumbers = [1, 16, 31, 46];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(false);
+    });
+
+    it('should not detect bingo with no marked numbers', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      const markedNumbers: number[] = [];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(false);
+    });
+
+    it('should always consider FREE space (0) as marked', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      // Mark middle row except center (which is FREE)
+      const markedNumbers = [3, 18, 48, 63];
+
+      const hasBingo = BingoCardGenerator.checkBingo(card, markedNumbers);
+      expect(hasBingo).toBe(true);
+    });
+  });
+
+  describe('transposeCard', () => {
+    it('should transpose card from columns to rows', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      const transposed = BingoCardGenerator.transposeCard(card);
+
+      // Check that it's transposed correctly
+      expect(transposed[0]).toEqual([1, 16, 31, 46, 61]);
+      expect(transposed[1]).toEqual([2, 17, 32, 47, 62]);
+      expect(transposed[2]).toEqual([3, 18, 0, 48, 63]);
+      expect(transposed[3]).toEqual([4, 19, 34, 49, 64]);
+      expect(transposed[4]).toEqual([5, 20, 35, 50, 65]);
+    });
+  });
+
+  describe('formatCard', () => {
+    it('should format card as string with header', () => {
+      const card = [
+        [1, 2, 3, 4, 5],
+        [16, 17, 18, 19, 20],
+        [31, 32, 0, 34, 35],
+        [46, 47, 48, 49, 50],
+        [61, 62, 63, 64, 65],
+      ];
+
+      const formatted = BingoCardGenerator.formatCard(card);
+
+      expect(formatted).toContain(' B   I   N   G   O');
+      expect(formatted).toContain('FREE');
+      expect(formatted).toContain('1');
+      expect(formatted).toContain('65');
+    });
+
+    it('should display FREE in center position', () => {
+      const card = BingoCardGenerator.generateCard();
+      const formatted = BingoCardGenerator.formatCard(card);
+
+      // Should have exactly one FREE
+      const freeCount = (formatted.match(/FREE/g) || []).length;
+      expect(freeCount).toBe(1);
+    });
+  });
+
+  describe('Integration tests', () => {
+    it('should generate valid card that can be checked for bingo', () => {
+      const card = BingoCardGenerator.generateCard();
+
+      // Verify it's a valid card
+      expect(card).toHaveLength(5);
+      expect(card[2][2]).toBe(0); // FREE space
+
+      // Mark all numbers in first row
+      const firstRow = card.map(col => col[0]);
+      const hasBingo = BingoCardGenerator.checkBingo(card, firstRow);
+
+      expect(hasBingo).toBe(true);
+    });
+
+    it('should generate 100 valid cards without errors', () => {
+      for (let i = 0; i < 100; i++) {
+        const card = BingoCardGenerator.generateCard();
+
+        // Basic validations
+        expect(card).toHaveLength(5);
+        expect(card[2][2]).toBe(0);
+
+        // Check ranges
+        card.forEach((column, colIndex) => {
+          column.forEach(num => {
+            if (num !== 0) {
+              expect(num).toBeGreaterThanOrEqual(1);
+              expect(num).toBeLessThanOrEqual(75);
+            }
+          });
+        });
+      }
+    });
+  });
+});

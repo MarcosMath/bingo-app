@@ -1,0 +1,503 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { GamesService } from './games.service';
+import { Game, GameStatus, GameMode } from './entities/game.entity';
+import { BingoCard } from './entities/bingo-card.entity';
+import { UsersService } from '../users/users.service';
+import { ConfigService } from '@nestjs/config';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+
+describe('GamesService', () => {
+  let service: GamesService;
+  let gameRepository: Repository<Game>;
+  let cardRepository: Repository<BingoCard>;
+  let usersService: UsersService;
+  let configService: ConfigService;
+
+  const mockGameRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+  };
+
+  const mockCardRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+  };
+
+  const mockUsersService = {
+    hasCredits: jest.fn(),
+    deductCredits: jest.fn(),
+    addCredits: jest.fn(),
+    findOne: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        GamesService,
+        {
+          provide: getRepositoryToken(Game),
+          useValue: mockGameRepository,
+        },
+        {
+          provide: getRepositoryToken(BingoCard),
+          useValue: mockCardRepository,
+        },
+        {
+          provide: UsersService,
+          useValue: mockUsersService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+      ],
+    }).compile();
+
+    service = module.get<GamesService>(GamesService);
+    gameRepository = module.get<Repository<Game>>(getRepositoryToken(Game));
+    cardRepository = module.get<Repository<BingoCard>>(getRepositoryToken(BingoCard));
+    usersService = module.get<UsersService>(UsersService);
+    configService = module.get<ConfigService>(ConfigService);
+
+    // Reset mocks
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('createGame', () => {
+    const userId = 'user-123';
+    const createGameDto = {
+      mode: GameMode.SINGLE,
+      betAmount: 50,
+    };
+
+    beforeEach(() => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        if (key === 'game.minBet') return 10;
+        if (key === 'game.maxBet') return 1000;
+        return null;
+      });
+    });
+
+    it('should create a single player game successfully', async () => {
+      const mockGameWaiting = {
+        id: 'game-123',
+        ...createGameDto,
+        prizePool: 50,
+        maxPlayers: 1,
+        currentPlayers: 1,
+        status: GameStatus.WAITING,
+      };
+
+      const mockGamePlaying = {
+        ...mockGameWaiting,
+        status: GameStatus.PLAYING,
+        startedAt: new Date(),
+        calledNumbers: [],
+      };
+
+      mockUsersService.hasCredits.mockResolvedValue(true);
+      mockGameRepository.create.mockReturnValue(mockGameWaiting);
+      mockGameRepository.save
+        .mockResolvedValueOnce(mockGameWaiting) // First save (create)
+        .mockResolvedValueOnce(mockGamePlaying); // Second save (start)
+      mockUsersService.deductCredits.mockResolvedValue({});
+      mockCardRepository.create.mockReturnValue({ id: 'card-123' });
+      mockCardRepository.save.mockResolvedValue({ id: 'card-123' });
+      // findOne returns waiting first, then playing
+      mockGameRepository.findOne
+        .mockResolvedValueOnce(mockGameWaiting)
+        .mockResolvedValueOnce(mockGamePlaying);
+
+      const result = await service.createGame(userId, createGameDto);
+
+      expect(mockUsersService.hasCredits).toHaveBeenCalledWith(userId, 50);
+      expect(mockUsersService.deductCredits).toHaveBeenCalledWith(userId, 50);
+      expect(mockGameRepository.create).toHaveBeenCalled();
+      expect(mockGameRepository.save).toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it('should throw BadRequestException if user has insufficient credits', async () => {
+      mockUsersService.hasCredits.mockResolvedValue(false);
+
+      await expect(
+        service.createGame(userId, createGameDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if bet amount is below minimum', async () => {
+      const invalidDto = { ...createGameDto, betAmount: 5 };
+
+      mockUsersService.hasCredits.mockResolvedValue(true);
+
+      await expect(
+        service.createGame(userId, invalidDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if bet amount is above maximum', async () => {
+      const invalidDto = { ...createGameDto, betAmount: 2000 };
+
+      mockUsersService.hasCredits.mockResolvedValue(true);
+
+      await expect(
+        service.createGame(userId, invalidDto),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('joinGame', () => {
+    const userId = 'user-123';
+    const gameId = 'game-123';
+
+    const mockGame = {
+      id: gameId,
+      status: GameStatus.WAITING,
+      betAmount: 50,
+      prizePool: 50,
+      maxPlayers: 4,
+      currentPlayers: 1,
+    };
+
+    it('should allow user to join a waiting game', async () => {
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockCardRepository.findOne.mockResolvedValue(null); // User not in game
+      mockUsersService.hasCredits.mockResolvedValue(true);
+      mockUsersService.deductCredits.mockResolvedValue({});
+      mockGameRepository.save.mockResolvedValue({ ...mockGame, currentPlayers: 2 });
+      mockCardRepository.create.mockReturnValue({ id: 'card-123' });
+      mockCardRepository.save.mockResolvedValue({ id: 'card-123' });
+
+      const result = await service.joinGame(userId, gameId);
+
+      expect(mockUsersService.deductCredits).toHaveBeenCalledWith(userId, 50);
+      expect(result).toBeDefined();
+    });
+
+    it('should throw BadRequestException if game already started', async () => {
+      const playingGame = { ...mockGame, status: GameStatus.PLAYING };
+      mockGameRepository.findOne.mockResolvedValue(playingGame);
+
+      await expect(service.joinGame(userId, gameId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if game is full', async () => {
+      const fullGame = { ...mockGame, currentPlayers: 4, maxPlayers: 4 };
+      mockGameRepository.findOne.mockResolvedValue(fullGame);
+
+      await expect(service.joinGame(userId, gameId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw ConflictException if user already in game', async () => {
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockCardRepository.findOne.mockResolvedValue({ id: 'existing-card' });
+
+      await expect(service.joinGame(userId, gameId)).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should throw BadRequestException if user has insufficient credits', async () => {
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockCardRepository.findOne.mockResolvedValue(null);
+      mockUsersService.hasCredits.mockResolvedValue(false);
+
+      await expect(service.joinGame(userId, gameId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('startGame', () => {
+    const gameId = 'game-123';
+
+    it('should start a waiting game', async () => {
+      const mockGame = {
+        id: gameId,
+        status: GameStatus.WAITING,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockGameRepository.save.mockImplementation((game) =>
+        Promise.resolve(game),
+      );
+
+      const result = await service.startGame(gameId);
+
+      expect(result.status).toBe(GameStatus.PLAYING);
+      expect(result.startedAt).toBeDefined();
+    });
+
+    it('should throw BadRequestException if game already started', async () => {
+      const mockGame = {
+        id: gameId,
+        status: GameStatus.PLAYING,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      await expect(service.startGame(gameId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('callNextNumber', () => {
+    const gameId = 'game-123';
+
+    it('should call a new random number', async () => {
+      const mockGame = {
+        id: gameId,
+        status: GameStatus.PLAYING,
+        calledNumbers: [1, 2, 3],
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockGameRepository.save.mockImplementation((game) =>
+        Promise.resolve(game),
+      );
+
+      const result = await service.callNextNumber(gameId);
+
+      expect(result.number).toBeGreaterThanOrEqual(1);
+      expect(result.number).toBeLessThanOrEqual(75);
+      expect(result.game.calledNumbers).toContain(result.number);
+    });
+
+    it('should throw BadRequestException if game is not playing', async () => {
+      const mockGame = {
+        id: gameId,
+        status: GameStatus.WAITING,
+        calledNumbers: [],
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      await expect(service.callNextNumber(gameId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if all numbers called', async () => {
+      const allNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+      const mockGame = {
+        id: gameId,
+        status: GameStatus.PLAYING,
+        calledNumbers: allNumbers,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      await expect(service.callNextNumber(gameId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('markNumber', () => {
+    const userId = 'user-123';
+    const cardId = 'card-123';
+    const number = 25;
+
+    it('should mark a valid number on card', async () => {
+      const mockCard = {
+        id: cardId,
+        userId,
+        numbers: [
+          [1, 2, 3, 4, 5],
+          [16, 17, 18, 19, 20],
+          [25, 32, 0, 34, 35],
+          [46, 47, 48, 49, 50],
+          [61, 62, 63, 64, 65],
+        ],
+        markedNumbers: [],
+        markedCount: 0,
+        hasWon: false,
+        game: {
+          id: 'game-123',
+          status: GameStatus.PLAYING,
+          calledNumbers: [1, 16, 25, 46, 61],
+        },
+      };
+
+      mockCardRepository.findOne.mockResolvedValue(mockCard);
+      mockCardRepository.save.mockImplementation((card) =>
+        Promise.resolve(card),
+      );
+
+      const result = await service.markNumber(userId, cardId, number);
+
+      expect(result.markedNumbers).toContain(number);
+      expect(result.markedCount).toBe(1);
+    });
+
+    it('should throw NotFoundException if card not found', async () => {
+      mockCardRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.markNumber(userId, cardId, number)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException if number not called yet', async () => {
+      const mockCard = {
+        id: cardId,
+        userId,
+        numbers: [[25]],
+        markedNumbers: [],
+        game: {
+          status: GameStatus.PLAYING,
+          calledNumbers: [1, 2, 3],
+        },
+      };
+
+      mockCardRepository.findOne.mockResolvedValue(mockCard);
+
+      await expect(service.markNumber(userId, cardId, number)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if number not in card', async () => {
+      const mockCard = {
+        id: cardId,
+        userId,
+        numbers: [[1, 2, 3, 4, 5]],
+        markedNumbers: [],
+        game: {
+          status: GameStatus.PLAYING,
+          calledNumbers: [25],
+        },
+      };
+
+      mockCardRepository.findOne.mockResolvedValue(mockCard);
+
+      await expect(service.markNumber(userId, cardId, number)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a game by id', async () => {
+      const mockGame = {
+        id: 'game-123',
+        status: GameStatus.WAITING,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      const result = await service.findOne('game-123');
+
+      expect(result).toEqual(mockGame);
+    });
+
+    it('should throw NotFoundException if game not found', async () => {
+      mockGameRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findOne('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getAvailableGames', () => {
+    it('should return list of waiting multiplayer games', async () => {
+      const mockGames = [
+        { id: 'game-1', status: GameStatus.WAITING, mode: GameMode.MULTIPLAYER },
+        { id: 'game-2', status: GameStatus.WAITING, mode: GameMode.MULTIPLAYER },
+      ];
+
+      mockGameRepository.find.mockResolvedValue(mockGames);
+
+      const result = await service.getAvailableGames();
+
+      expect(result).toHaveLength(2);
+      expect(mockGameRepository.find).toHaveBeenCalledWith({
+        where: {
+          status: GameStatus.WAITING,
+          mode: GameMode.MULTIPLAYER,
+        },
+        order: { createdAt: 'DESC' },
+        take: 20,
+      });
+    });
+  });
+
+  describe('cancelGame', () => {
+    const gameId = 'game-123';
+    const hostId = 'user-123';
+
+    it('should cancel a waiting game and refund credits', async () => {
+      const mockGame = {
+        id: gameId,
+        hostId,
+        status: GameStatus.WAITING,
+        betAmount: 50,
+      };
+
+      const mockCards = [
+        { userId: 'user-1', id: 'card-1' },
+        { userId: 'user-2', id: 'card-2' },
+      ];
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+      mockGameRepository.save.mockImplementation((game) =>
+        Promise.resolve(game),
+      );
+      mockCardRepository.find.mockResolvedValue(mockCards);
+      mockUsersService.addCredits.mockResolvedValue({});
+
+      const result = await service.cancelGame(gameId, hostId);
+
+      expect(result.status).toBe(GameStatus.CANCELLED);
+      expect(mockUsersService.addCredits).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw BadRequestException if user is not host', async () => {
+      const mockGame = {
+        id: gameId,
+        hostId: 'different-user',
+        status: GameStatus.WAITING,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      await expect(service.cancelGame(gameId, hostId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if game is not waiting', async () => {
+      const mockGame = {
+        id: gameId,
+        hostId,
+        status: GameStatus.PLAYING,
+      };
+
+      mockGameRepository.findOne.mockResolvedValue(mockGame);
+
+      await expect(service.cancelGame(gameId, hostId)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+});
