@@ -1,9 +1,16 @@
 # Dependencies
 node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
 
 # Expo
 .expo/
-dist/
+**/.expo/
 web-build/
 
 # Native
@@ -26,12 +33,52 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# Local env files
+# Windows
+Thumbs.db
+desktop.ini
+
+# Environment files
+.env
 .env*.local
+**/.env
+**/.env*.local
 
 # Typescript
 *.tsbuildinfo
+**/*.tsbuildinfo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+**/coverage/
+.nyc_output/
+
+# Prisma
+**/prisma/migrations/
+# Keep schema but ignore generated client
+apps/backend/node_modules/.prisma/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
 # Claude
 .claude/
-node_modules
+
+# Old folders (migration backups)
+_old/
+backup/

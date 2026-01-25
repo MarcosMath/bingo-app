@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique @db.VarChar(50)
+  email     String   @unique @db.VarChar(100)
+  password  String
+  credits   Decimal  @default(100) @db.Decimal(10, 2)
+  isActive  Boolean  @default(true) @map("is_active")
+  avatar    String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  cards       BingoCard[]
+  hostedGames Game[]      @relation("GameHost")
+  wonGames    Game[]      @relation("GameWinner")
+
+  @@map("users")
+}
+
+// Game model
+model Game {
+  id             String     @id @default(uuid())
+  mode           GameMode   @default(SINGLE)
+  status         GameStatus @default(WAITING)
+  betAmount      Decimal    @map("bet_amount") @db.Decimal(10, 2)
+  prizePool      Decimal    @default(0) @map("prize_pool") @db.Decimal(10, 2)
+  drawnNumbers   Int[]      @default([]) @map("drawn_numbers")
+  currentNumber  Int?       @map("current_number")
+  winnerId       String?    @map("winner_id")
+  hostId         String?    @map("host_id")
+  maxPlayers     Int        @default(1) @map("max_players")
+  currentPlayers Int        @default(0) @map("current_players")
+  isPrivate      Boolean    @default(false) @map("is_private")
+  startedAt      DateTime?  @map("started_at")
+  finishedAt     DateTime?  @map("finished_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  winner User?       @relation("GameWinner", fields: [winnerId], references: [id])
+  host   User?       @relation("GameHost", fields: [hostId], references: [id])
+  cards  BingoCard[]
+
+  @@map("games")
+}
+
+// BingoCard model
+model BingoCard {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  gameId        String   @map("game_id")
+  numbers       Json
+  markedNumbers Int[]    @default([]) @map("marked_numbers")
+  hasWon        Boolean  @default(false) @map("has_won")
+  markedCount   Int      @default(0) @map("marked_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  game Game @relation(fields: [gameId], references: [id])
+
+  @@map("bingo_cards")
+}
+
+// Enums
+enum GameMode {
+  SINGLE
+  MULTIPLAYER
+}
+
+enum GameStatus {
+  WAITING
+  PLAYING
+  FINISHED
+  CANCELLED
+}

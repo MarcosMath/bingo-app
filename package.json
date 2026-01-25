@@ -1,33 +1,42 @@
 {
-  "name": "bingo",
+  "name": "bingo-game-monorepo",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "private": true,
+  "description": "Bingo multiplayer game - Monorepo with React Native mobile app and NestJS backend",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "dev:mobile": "npm run start --workspace=@bingo/mobile",
+    "dev:backend": "npm run start:dev --workspace=@bingo/backend",
+    "dev:all": "npm run dev:backend & npm run dev:mobile",
+    "build:mobile": "npm run build --workspace=@bingo/mobile",
+    "build:backend": "npm run build --workspace=@bingo/backend",
+    "build:all": "npm run build:backend && npm run build:mobile",
+    "test:mobile": "npm run test --workspace=@bingo/mobile",
+    "test:backend": "npm run test --workspace=@bingo/backend",
+    "test:all": "npm run test:backend && npm run test:mobile",
+    "lint:mobile": "npm run lint --workspace=@bingo/mobile",
+    "lint:backend": "npm run lint --workspace=@bingo/backend",
+    "lint:all": "npm run lint:backend && npm run lint:mobile",
+    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
+    "install:all": "npm install",
+    "prisma:generate": "npm run prisma:generate --workspace=@bingo/backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=@bingo/backend",
+    "prisma:studio": "npm run prisma:studio --workspace=@bingo/backend"
   },
-  "dependencies": {
-    "@expo/metro-runtime": "~4.0.1",
-    "expo": "~52.0.18",
-    "expo-asset": "~11.0.5",
-    "expo-constants": "~17.0.3",
-    "expo-font": "~13.0.4",
-    "expo-linking": "~7.0.3",
-    "expo-router": "~4.0.14",
-    "expo-status-bar": "~2.0.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "react-native": "0.76.9",
-    "react-native-safe-area-context": "4.12.0",
-    "react-native-screens": "4.4.0",
-    "react-native-web": "~0.19.13"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@types/react": "~18.3.12",
-    "typescript": "^5.3.3"
-  },
-  "private": true
+  "keywords": [
+    "bingo",
+    "multiplayer",
+    "react-native",
+    "nestjs",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
 }
