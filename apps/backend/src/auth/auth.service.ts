@@ -71,7 +71,7 @@ export class AuthService {
 
     return {
       access_token,
-      user: plainToInstance(UserResponseDto, user),
+      user: UserResponseDto.fromEntity(user),
     };
   }
 

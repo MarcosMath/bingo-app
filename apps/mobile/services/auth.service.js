@@ -4,6 +4,7 @@
  */
 
 import apiService from './api.service';
+import storageService from './storage.service';
 
 class AuthService {
   /**
@@ -15,9 +16,14 @@ class AuthService {
     try {
       const response = await apiService.post('/auth/register', userData);
 
-      // Si el registro es exitoso, guardar el token
+      // Si el registro es exitoso, guardar el token en memoria y persistencia
       if (response.access_token) {
         apiService.setAuthToken(response.access_token);
+        await storageService.saveAuthToken(response.access_token);
+
+        // Guardar datos del usuario
+        const user = response.user || response;
+        await storageService.saveUserData(user);
       }
 
       return response;
@@ -39,9 +45,14 @@ class AuthService {
     try {
       const response = await apiService.post('/auth/login', credentials);
 
-      // Si el login es exitoso, guardar el token
+      // Si el login es exitoso, guardar el token en memoria y persistencia
       if (response.access_token) {
         apiService.setAuthToken(response.access_token);
+        await storageService.saveAuthToken(response.access_token);
+
+        // Guardar datos del usuario
+        const user = response.user || response;
+        await storageService.saveUserData(user);
       }
 
       return response;
@@ -78,8 +89,48 @@ class AuthService {
   /**
    * Cerrar sesión
    */
-  logout() {
+  async logout() {
     apiService.setAuthToken(null);
+    await storageService.clearAuthData();
+  }
+
+  /**
+   * Restaurar sesión desde almacenamiento persistente
+   * @returns {Promise<Object|null>} - User data si hay sesión válida, null si no
+   */
+  async restoreSession() {
+    try {
+      const token = await storageService.getAuthToken();
+
+      if (!token) {
+        console.log('No hay token guardado');
+        return null;
+      }
+
+      console.log('Token encontrado, validando...');
+
+      // Configurar token en memoria
+      apiService.setAuthToken(token);
+
+      // Validar que el token siga siendo válido
+      const isValid = await this.validateToken();
+
+      if (isValid) {
+        console.log('Token válido, restaurando sesión');
+        const userData = await storageService.getUserData();
+        return userData;
+      } else {
+        console.log('Token inválido, limpiando datos');
+        await storageService.clearAuthData();
+        apiService.setAuthToken(null);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error al restaurar sesión:', error);
+      await storageService.clearAuthData();
+      apiService.setAuthToken(null);
+      return null;
+    }
   }
 
   /**

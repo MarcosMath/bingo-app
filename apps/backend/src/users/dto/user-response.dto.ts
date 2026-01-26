@@ -13,7 +13,13 @@ export class UserResponseDto {
   email: string;
 
   @Expose()
-  credits: number;
+  creditsCash: number;
+
+  @Expose()
+  creditsBonus: number;
+
+  @Expose()
+  creditsTotal: number;
 
   @Expose()
   isActive: boolean;
@@ -32,7 +38,12 @@ export class UserResponseDto {
     dto.id = user.id;
     dto.username = user.username;
     dto.email = user.email;
-    dto.credits = Number(user.credits);
+
+    // Convertir Decimal de Prisma a número
+    dto.creditsCash = user.creditsCash ? Number(user.creditsCash.toString()) : 0;
+    dto.creditsBonus = user.creditsBonus ? Number(user.creditsBonus.toString()) : 0;
+    dto.creditsTotal = dto.creditsCash + dto.creditsBonus;
+
     dto.isActive = user.isActive;
     dto.avatar = user.avatar;
     dto.createdAt = user.createdAt;

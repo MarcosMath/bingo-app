@@ -12,10 +12,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import authService from '../services/auth.service';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -39,7 +40,7 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const response = await authService.login(formData);
+      const response = await login(formData);
 
       // Manejar diferentes estructuras de respuesta
       const user = response.user || response;
@@ -156,11 +157,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   title: {
     fontSize: 28,

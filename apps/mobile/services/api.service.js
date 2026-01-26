@@ -52,6 +52,13 @@ class ApiService {
         };
       }
 
+      // El backend envuelve las respuestas exitosas en {statusCode, message, data}
+      // Si existe el campo 'data', extraerlo; si no, retornar la respuesta completa
+      if (data && typeof data === 'object' && 'data' in data) {
+        console.log('Extracting data from wrapped response:', data.data);
+        return data.data;
+      }
+
       return data;
     } catch (error) {
       clearTimeout(timeoutId);

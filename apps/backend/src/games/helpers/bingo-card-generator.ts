@@ -1,15 +1,13 @@
 /**
- * Genera un cartón de bingo tradicional de 5x5
- * - Columna B: 1-15
- * - Columna I: 16-30
- * - Columna N: 31-45 (centro es FREE)
- * - Columna G: 46-60
- * - Columna O: 61-75
+ * Genera cartones de bingo en diferentes tamaños
+ * - 3x3 (Rápido): Números del 1-27
+ * - 5x5 (Clásico): Sistema tradicional B-I-N-G-O
  */
 export class BingoCardGenerator {
-  private static readonly COLUMNS = 5;
-  private static readonly ROWS = 5;
-  private static readonly RANGES = [
+  // Configuración para 5x5 (Clásico)
+  private static readonly COLUMNS_5X5 = 5;
+  private static readonly ROWS_5X5 = 5;
+  private static readonly RANGES_5X5 = [
     { min: 1, max: 15 },   // B
     { min: 16, max: 30 },  // I
     { min: 31, max: 45 },  // N
@@ -17,19 +15,52 @@ export class BingoCardGenerator {
     { min: 61, max: 75 },  // O
   ];
 
+  // Configuración para 3x3 (Rápido)
+  private static readonly COLUMNS_3X3 = 3;
+  private static readonly ROWS_3X3 = 3;
+  private static readonly RANGES_3X3 = [
+    { min: 1, max: 9 },    // Primera columna
+    { min: 10, max: 18 },  // Segunda columna
+    { min: 19, max: 27 },  // Tercera columna
+  ];
+
   /**
-   * Genera un cartón de bingo aleatorio
+   * Genera un cartón de bingo 3x3 (Rápido)
    */
-  static generateCard(): number[][] {
+  static generateCard3x3(): number[][] {
     const card: number[][] = [];
 
-    for (let col = 0; col < this.COLUMNS; col++) {
+    for (let col = 0; col < this.COLUMNS_3X3; col++) {
       const column: number[] = [];
-      const range = this.RANGES[col];
+      const range = this.RANGES_3X3[col];
+      const availableNumbers = this.getNumbersInRange(range.min, range.max);
+
+      // Seleccionar 3 números aleatorios de la columna
+      for (let row = 0; row < this.ROWS_3X3; row++) {
+        const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+        column.push(availableNumbers[randomIndex]);
+        availableNumbers.splice(randomIndex, 1);
+      }
+
+      card.push(column);
+    }
+
+    return card;
+  }
+
+  /**
+   * Genera un cartón de bingo 5x5 (Clásico)
+   */
+  static generateCard5x5(): number[][] {
+    const card: number[][] = [];
+
+    for (let col = 0; col < this.COLUMNS_5X5; col++) {
+      const column: number[] = [];
+      const range = this.RANGES_5X5[col];
       const availableNumbers = this.getNumbersInRange(range.min, range.max);
 
       // Seleccionar 5 números aleatorios de la columna
-      for (let row = 0; row < this.ROWS; row++) {
+      for (let row = 0; row < this.ROWS_5X5; row++) {
         // El centro (columna N, fila 2) es FREE (marcado con 0)
         if (col === 2 && row === 2) {
           column.push(0);
@@ -44,6 +75,13 @@ export class BingoCardGenerator {
     }
 
     return card;
+  }
+
+  /**
+   * Genera un cartón según el tamaño especificado
+   */
+  static generateCard(size: '3x3' | '5x5' = '5x5'): number[][] {
+    return size === '3x3' ? this.generateCard3x3() : this.generateCard5x5();
   }
 
   /**
@@ -62,12 +100,15 @@ export class BingoCardGenerator {
    */
   static checkBingo(card: number[][], markedNumbers: number[]): boolean {
     const markedSet = new Set(markedNumbers);
-    markedSet.add(0); // El centro siempre está marcado
+    markedSet.add(0); // El centro FREE siempre está marcado (solo en 5x5)
+
+    const cols = card.length;
+    const rows = card[0]?.length || 0;
 
     // Verificar filas
-    for (let row = 0; row < this.ROWS; row++) {
+    for (let row = 0; row < rows; row++) {
       let hasLine = true;
-      for (let col = 0; col < this.COLUMNS; col++) {
+      for (let col = 0; col < cols; col++) {
         if (!markedSet.has(card[col][row])) {
           hasLine = false;
           break;
@@ -77,9 +118,9 @@ export class BingoCardGenerator {
     }
 
     // Verificar columnas
-    for (let col = 0; col < this.COLUMNS; col++) {
+    for (let col = 0; col < cols; col++) {
       let hasLine = true;
-      for (let row = 0; row < this.ROWS; row++) {
+      for (let row = 0; row < rows; row++) {
         if (!markedSet.has(card[col][row])) {
           hasLine = false;
           break;
@@ -90,7 +131,7 @@ export class BingoCardGenerator {
 
     // Verificar diagonal principal (\)
     let hasDiagonal1 = true;
-    for (let i = 0; i < this.COLUMNS; i++) {
+    for (let i = 0; i < cols; i++) {
       if (!markedSet.has(card[i][i])) {
         hasDiagonal1 = false;
         break;
@@ -100,8 +141,8 @@ export class BingoCardGenerator {
 
     // Verificar diagonal secundaria (/)
     let hasDiagonal2 = true;
-    for (let i = 0; i < this.COLUMNS; i++) {
-      if (!markedSet.has(card[i][this.ROWS - 1 - i])) {
+    for (let i = 0; i < cols; i++) {
+      if (!markedSet.has(card[i][rows - 1 - i])) {
         hasDiagonal2 = false;
         break;
       }
@@ -115,10 +156,13 @@ export class BingoCardGenerator {
    * Convierte el formato de columnas a filas para mejor visualización
    */
   static transposeCard(card: number[][]): number[][] {
+    const cols = card.length;
+    const rows = card[0]?.length || 0;
     const transposed: number[][] = [];
-    for (let row = 0; row < this.ROWS; row++) {
+
+    for (let row = 0; row < rows; row++) {
       const newRow: number[] = [];
-      for (let col = 0; col < this.COLUMNS; col++) {
+      for (let col = 0; col < cols; col++) {
         newRow.push(card[col][row]);
       }
       transposed.push(newRow);
@@ -129,15 +173,29 @@ export class BingoCardGenerator {
   /**
    * Formatea un cartón para display (como string)
    */
-  static formatCard(card: number[][]): string {
+  static formatCard(card: number[][], size: '3x3' | '5x5' = '5x5'): string {
     const transposed = this.transposeCard(card);
-    let output = ' B   I   N   G   O\n';
-    output += '─────────────────────\n';
+    let output = '';
+
+    if (size === '5x5') {
+      output = ' B   I   N   G   O\n';
+      output += '─────────────────────\n';
+    } else {
+      output = ' 1   2   3\n';
+      output += '───────────\n';
+    }
 
     for (const row of transposed) {
       output += row.map(num => num === 0 ? 'FREE' : num.toString().padStart(2, ' ')).join('  ') + '\n';
     }
 
     return output;
+  }
+
+  /**
+   * Obtiene el rango máximo de números según el tamaño del cartón
+   */
+  static getMaxNumber(size: '3x3' | '5x5'): number {
+    return size === '3x3' ? 27 : 75;
   }
 }
